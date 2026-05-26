@@ -1,0 +1,34 @@
+from pydantic import BaseModel, EmailStr, Field
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1)
+
+
+class RegisterRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: EmailStr
+    password: str = Field(min_length=6)
+    role: str = Field(default="Member", description="Member | Organization | Admin")
+    student_id: str | None = Field(None, max_length=40)
+    contact_number: str | None = Field(None, max_length=40)
+    adviser_name: str | None = Field(None, max_length=120)
+    skill_level: str | None = Field(None, max_length=60, description="Optional skill tier name")
+
+
+class UserOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: str
+
+    model_config = {"from_attributes": True}
+
+
+class LoginResponse(BaseModel):
+    token: str
+    user: UserOut
+    redirect_hint: str = Field(
+        description="web_admin for Admin, mobile_app for Member/Organization"
+    )

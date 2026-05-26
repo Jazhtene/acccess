@@ -1,0 +1,98 @@
+"""Application settings loaded from environment variables."""
+
+from pydantic import Field, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    # PostgreSQL — use DB_* names (Windows has USERNAME=YourPCName in env)
+    db_host: str = Field(default="localhost", alias="DB_HOST")
+    db_port: int = Field(default=5432, alias="DB_PORT")
+    db_username: str = Field(default="postgres", alias="DB_USERNAME")
+    db_password: str = Field(default="", alias="DB_PASSWORD")
+    db_name: str = Field(default="access", alias="DB_NAME")
+
+    database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
+
+    jwt_secret: str = "access_visioncheck_dev_secret"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 10080
+
+    # Bind address (0.0.0.0 = listen on all interfaces for LAN/mobile access)
+    api_host: str = Field(default="0.0.0.0", alias="API_HOST")
+    api_port: int = Field(default=3001, alias="API_PORT")
+    # LAN IP shown to Flutter apps (Admin Web + Android)
+    api_public_host: str = Field(default="192.168.137.162", alias="API_PUBLIC_HOST")
+
+    # Comma-separated Host header values (TrustedHostMiddleware). The defaults
+    # keep both the current and the previously-used LAN IPs so a laptop that
+    # roams between Wi-Fi networks keeps working without re-editing the file.
+    allowed_hosts: str = Field(
+        default=(
+            "192.168.137.162,192.168.137.162:3001,"
+            "192.168.0.137,192.168.0.137:3001,"
+            "10.0.22.98,10.0.22.98:3001,"
+            "localhost,localhost:3001,"
+            "127.0.0.1,127.0.0.1:3001"
+        ),
+        alias="ALLOWED_HOSTS",
+    )
+
+    cors_origins: str = Field(
+        default=(
+            "http://192.168.137.162:3001,"
+            "http://192.168.137.162,"
+            "http://192.168.0.137:3001,"
+            "http://192.168.0.137,"
+            "http://10.0.22.98:3001,"
+            "http://10.0.22.98,"
+            "http://localhost:3001,"
+            "http://127.0.0.1:3001,"
+            "http://localhost,"
+            "http://127.0.0.1"
+        ),
+        alias="CORS_ORIGINS",
+    )
+    upload_dir: str = "uploads"
+    max_upload_mb: int = 100
+
+    facebook_app_id: str = Field(default="", alias="FACEBOOK_APP_ID")
+    facebook_client_token: str = Field(default="", alias="FACEBOOK_CLIENT_TOKEN")
+    facebook_page_id: str = Field(default="61590008614900", alias="FACEBOOK_PAGE_ID")
+    facebook_page_access_token: str = Field(default="", alias="FACEBOOK_PAGE_ACCESS_TOKEN")
+
+    @computed_field
+    @property
+    def database_url(self) -> str:
+        if self.database_url_override:
+            return self.database_url_override
+        return (
+            f"postgresql+psycopg://{self.db_username}:{self.db_password}"
+            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+        )
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        if self.cors_origins.strip() == "*":
+            return ["*"]
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def allowed_host_list(self) -> list[str]:
+        if self.allowed_hosts.strip() == "*":
+            return ["*"]
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
+
+    @property
+    def public_api_url(self) -> str:
+        return f"http://{self.api_public_host}:{self.api_port}"
+
+
+settings = Settings()

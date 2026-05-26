@@ -1,0 +1,12 @@
+name: ai_image_validator
+description: Vendored ai_image_validator 1.0.4 API for ACCESS (SDK 3.9 compatible).
+version: 1.0.4
+publish_to: none
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.22.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  google_generative_ai: ^0.4.7
+  image_picker: ^1.1.2

@@ -1,0 +1,27 @@
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
+
+from app.models.feedback import Feedback
+
+
+def list_feedbacks(
+    db: Session,
+    *,
+    user_id: int | None = None,
+    request_id: int | None = None,
+) -> list[Feedback]:
+    q = select(Feedback).options(joinedload(Feedback.user), joinedload(Feedback.request))
+    if user_id is not None:
+        q = q.where(Feedback.user_id == user_id)
+    if request_id is not None:
+        q = q.where(Feedback.request_id == request_id)
+    q = q.order_by(Feedback.created_at.desc())
+    return list(db.scalars(q))
+
+
+def create(db: Session, data: dict) -> Feedback:
+    row = Feedback(**data)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row

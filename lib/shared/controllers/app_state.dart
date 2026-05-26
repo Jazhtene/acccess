@@ -1,0 +1,561 @@
+import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:access_mobile/shared/themes/theme.dart';
+
+// ── Models ────────────────────────────────────────────────────────────────────
+
+// ── Pipeline result models ────────────────────────────────────────────────────
+
+enum RiskLevel { low, medium, high }
+
+class QualityMetrics {
+  final double blur;        // 0–1 (1 = sharp)
+  final double lighting;    // 0–1
+  final double resolution;  // 0–1
+  final double composition; // 0–1
+  final double overall;     // weighted average
+  const QualityMetrics({
+    required this.blur, required this.lighting,
+    required this.resolution, required this.composition,
+    required this.overall,
+  });
+}
+
+class AiDetectionResult {
+  final bool isAiGenerated;
+  final double confidence;   // 0–1
+  final String method;       // e.g. "ResNet50 + metadata"
+  const AiDetectionResult({
+    required this.isAiGenerated,
+    required this.confidence,
+    required this.method,
+  });
+}
+
+class PipelineResult {
+  final QualityMetrics quality;
+  final AiDetectionResult aiDetection;
+  final double finalScore;       // 0–1 weighted
+  final RiskLevel riskLevel;
+  final String skillBadge;       // Novice / Beginner / Intermediate / Advanced / Expert / Master
+  final String gemindiFeedback;  // Gemini-generated feedback text
+  final bool pendingAdminReview; // true if high risk
+  const PipelineResult({
+    required this.quality,
+    required this.aiDetection,
+    required this.finalScore,
+    required this.riskLevel,
+    required this.skillBadge,
+    required this.gemindiFeedback,
+    required this.pendingAdminReview,
+  });
+}
+
+class Evaluation {
+  final String id, title, composition, lighting, sharpness, feedback, date;
+  final double score;
+  final List<Uint8List> images;
+  final String? imageUrl;
+  final PipelineResult? pipeline; // full pipeline result
+  Evaluation({
+    required this.id,
+    required this.title,
+    required this.score,
+    required this.composition,
+    required this.lighting,
+    this.sharpness = '—',
+    required this.feedback,
+    required this.date,
+    this.images = const [],
+    this.imageUrl,
+    this.pipeline,
+  });
+
+  bool get isPending => score == 0;
+  String get feedbackStatus =>
+      feedback.trim().isEmpty ? 'Pending' : (isPending ? 'Awaiting review' : 'Ready');
+}
+
+class CalendarEvent {
+  final String tag, title, date, description;
+  String status;
+  final Color statusColor;
+  CalendarEvent({
+    required this.tag,
+    required this.title,
+    required this.date,
+    required this.status,
+    required this.statusColor,
+    required this.description,
+  });
+}
+
+class Challenge {
+  final int? assignmentId;
+  final int? requestId;
+  final String title, description;
+  final int xp;
+  bool completed;
+  String status;
+  Challenge({
+    this.assignmentId,
+    this.requestId,
+    required this.title,
+    required this.description,
+    required this.xp,
+    this.completed = false,
+    this.status = 'assigned',
+  });
+}
+
+enum MediaType { photo, video }
+
+class GalleryItem {
+  final String title, category, date;
+  final Color color;
+  final String? imagePath;
+  final Uint8List? imageBytes;
+  final String? videoPath;
+  final String? networkUrl;
+  final MediaType? mediaType;
+  final bool aiDetected; // flagged as AI-generated
+  final int? mediaId;
+  final int? requestId;
+  GalleryItem({
+    required this.title,
+    required this.category,
+    required this.date,
+    required this.color,
+    this.imagePath,
+    this.imageBytes,
+    this.videoPath,
+    this.networkUrl,
+    this.mediaType,
+    this.aiDetected = false,
+    this.mediaId,
+    this.requestId,
+  });
+
+  bool get isVideo => mediaType == MediaType.video;
+}
+
+class AppNotification {
+  final String title, body;
+  final IconData icon;
+  final Color color;
+  bool read;
+  AppNotification({
+    required this.title,
+    required this.body,
+    required this.icon,
+    required this.color,
+    this.read = false,
+  });
+}
+
+class Member {
+  final String name, rank, initials;
+  final int uploads;          // total uploads
+  final int goodEvaluations;  // evaluations with score ≥ 0.70 — drives ranking & badge
+  final double avgMediaScore;
+  final Color avatarColor;
+  Member({
+    required this.name,
+    required this.rank,
+    required this.initials,
+    required this.uploads,
+    required this.goodEvaluations,
+    this.avgMediaScore = 0,
+    required this.avatarColor,
+  });
+
+  BadgeInfo get badge => memberBadge(goodEvaluations);
+}
+
+class EventFeedback {
+  final String eventTitle, type, message, date;
+  final int rating; // 1–5
+  EventFeedback({
+    required this.eventTitle,
+    required this.type,
+    required this.message,
+    required this.rating,
+    required this.date,
+  });
+}
+
+class Achievement {
+  final String title, description;
+  final IconData icon;
+  final Color color;
+  final String date;
+  Achievement({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.date,
+  });
+}
+
+// ── Badge system (based on number of good evaluations, score ≥ 0.70) ──────────
+// 0        → Novice       ⚪
+// 1–2      → Beginner     🟤
+// 3–5      → Intermediate 🟡
+// 6–9      → Advanced     🟢
+// 10–14    → Expert       🔵
+// 15+      → Master       🟣
+
+class BadgeInfo {
+  final String label;
+  final String emoji;
+  final Color color;
+  const BadgeInfo(this.label, this.emoji, this.color);
+}
+
+/// Computes a photographer title based on average score and number of evaluations.
+/// Requires at least 3 evaluations. Title reflects overall quality.
+///
+/// avg ≥ 0.90 → Master Photographer
+/// avg ≥ 0.80 → Expert Photographer
+/// avg ≥ 0.70 → Senior Documenter
+/// avg ≥ 0.60 → Documenter
+/// avg ≥ 0.50 → Junior Documenter
+/// avg <  0.50 → Apprentice
+///
+/// With 5+ evaluations, "Senior" prefix is added to mid-tier titles.
+String computeTitle(double avgScore, int evalCount) {
+  final senior = evalCount >= 5;
+  if (avgScore >= 0.90) return 'Master Photographer';
+  if (avgScore >= 0.80) return 'Expert Photographer';
+  if (avgScore >= 0.70) return senior ? 'Senior Documenter' : 'Documenter';
+  if (avgScore >= 0.60) return senior ? 'Senior Photographer' : 'Photographer';
+  if (avgScore >= 0.50) return 'Junior Documenter';
+  return 'Apprentice';
+}
+
+BadgeInfo memberBadge(int goodEvals) {
+  if (goodEvals >= 15) return const BadgeInfo('Master',       '🟣', Color(0xFF6B21E8));
+  if (goodEvals >= 10) return const BadgeInfo('Expert',       '🔵', Color(0xFF3B82F6));
+  if (goodEvals >= 6)  return const BadgeInfo('Advanced',     '🟢', Color(0xFF22C55E));
+  if (goodEvals >= 3)  return const BadgeInfo('Intermediate', '🟡', Color(0xFFF59E0B));
+  if (goodEvals >= 1)  return const BadgeInfo('Beginner',     '🟤', Color(0xFFCD7C2F));
+  return                const BadgeInfo('Novice',        '⚪', Color(0xFF94A3B8));
+}
+
+class ServiceRequest {
+  final String id, type, details, date, requesterName;
+  String status; // Pending, In Review, Approved, Rejected
+  final int? requestId;
+  ServiceRequest({
+    required this.id,
+    required this.type,
+    required this.details,
+    required this.date,
+    required this.requesterName,
+    this.status = 'Pending',
+    this.requestId,
+  });
+}
+
+// ── Pending registration ──────────────────────────────────────────────────────
+enum RegistrationStatus { pending, approved, rejected }
+
+class PendingUser {
+  final String name, email, password, role;
+  RegistrationStatus status;
+  PendingUser({
+    required this.name,
+    required this.email,
+    required this.password,
+    required this.role,
+    this.status = RegistrationStatus.pending,
+  });
+}
+
+// ── App State ─────────────────────────────────────────────────────────────────
+
+class AppState extends ChangeNotifier {
+  static const _themeModeKey = 'theme_mode';
+
+  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode get themeMode => _themeMode;
+
+  AppState() {
+    _loadThemeMode();
+  }
+
+  Future<void> _loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_themeModeKey);
+    if (raw == null) return;
+    _themeMode = ThemeMode.values.firstWhere(
+      (m) => m.name == raw,
+      orElse: () => ThemeMode.system,
+    );
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModeKey, mode.name);
+  }
+
+  // Populated from PostgreSQL after login via MemberDataController.refreshAll().
+  final List<Evaluation> evaluations = [];
+  final List<CalendarEvent> events = [];
+  final List<Challenge> challenges = [];
+  final List<GalleryItem> gallery = [];
+  final List<AppNotification> notifications = [];
+
+  int get unreadCount => notifications.where((n) => !n.read).length;
+
+  void markAllRead() {
+    for (final n in notifications) n.read = true;
+    notifyListeners();
+  }
+
+  void toggleChallenge(int i) {
+    challenges[i].completed = !challenges[i].completed;
+    notifyListeners();
+  }
+
+  void updateEventStatus(int i, String status) {
+    events[i].status = status;
+    notifyListeners();
+  }
+
+  void submitRequest(String type, String details) {
+    notifications.insert(0, AppNotification(
+      title: 'Request Submitted',
+      body: '$type: $details',
+      icon: Icons.send,
+      color: kBlue,
+    ));
+    notifyListeners();
+  }
+
+  void addGalleryItem(GalleryItem item) {
+    // Run AI detection on the image bytes
+    final detected = item.imageBytes != null ? _detectAiGallery(item.imageBytes!) : false;
+    gallery.insert(0, GalleryItem(
+      title: item.title, category: item.category, date: item.date,
+      color: item.color, imagePath: item.imagePath, imageBytes: item.imageBytes,
+      videoPath: item.videoPath, mediaType: item.mediaType,
+      aiDetected: detected,
+    ));
+    notifyListeners();
+  }
+
+  /// High-sensitivity multi-signal AI detection for gallery uploads.
+  static bool _detectAiGallery(Uint8List bytes) {
+    if (bytes.length < 100) return false;
+    final sampleSize = bytes.length.clamp(0, 8000);
+    final sample = bytes.sublist(0, sampleSize);
+    int aiSignals = 0;
+
+    // Signal 1: Low variance
+    double mean = 0;
+    for (final b in sample) mean += b;
+    mean /= sample.length;
+    double variance = 0;
+    for (final b in sample) variance += (b - mean) * (b - mean);
+    variance /= sample.length;
+    if (variance < 2500) aiSignals++;
+
+    // Signal 2: No sensor noise
+    int smallDiffs = 0;
+    for (int i = 1; i < min(sample.length, 2000); i++) {
+      if ((sample[i] - sample[i - 1]).abs() < 4) smallDiffs++;
+    }
+    if (smallDiffs / min(sample.length - 1, 1999) > 0.60) aiSignals++;
+
+    // Signal 3: Mid-range pixel clustering
+    int midRange = 0;
+    for (final b in sample) {
+      if (b >= 90 && b <= 190) midRange++;
+    }
+    if (midRange / sample.length > 0.45) aiSignals++;
+
+    // Signal 4: File size heuristic
+    if (bytes.length < 200000) aiSignals++;
+
+    // 1 signal is enough — super sensitive
+    return aiSignals >= 1;
+  }
+
+  void addEvaluation(Evaluation ev) {
+    evaluations.insert(0, ev);
+    notifications.insert(0, AppNotification(
+      title: 'Photos Submitted',
+      body: '${ev.title} — ${ev.images.length} photo(s) uploaded. Pending officer review.',
+      icon: Icons.photo_camera,
+      color: kCyan,
+    ));
+    notifyListeners();
+  }
+
+  /// Returns how many evaluations were saved today (by date string match).
+  int get evaluationsTodayCount {
+    final now = DateTime.now();
+    final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final todayStr = '${months[now.month - 1]} ${now.day}, ${now.year}';
+    return evaluations.where((e) => e.date == todayStr).length;
+  }
+
+  static const int dailyEvaluationLimit = 5;
+
+  final List<EventFeedback> feedbacks = [];
+
+  void submitEventFeedback(EventFeedback fb) {
+    feedbacks.insert(0, fb);
+    notifications.insert(0, AppNotification(
+      title: 'Feedback Submitted',
+      body: '${fb.type} on "${fb.eventTitle}" — thank you!',
+      icon: Icons.chat_bubble_outline,
+      color: kAccent,
+    ));
+    notifyListeners();
+  }
+
+  final List<ServiceRequest> serviceRequests = [];
+
+  /// Replaces the in-memory list from API data (called after fetching
+  /// `/api/service-requests` from PostgreSQL).
+  void setServiceRequests(List<ServiceRequest> rows) {
+    serviceRequests
+      ..clear()
+      ..addAll(rows);
+    notifyListeners();
+  }
+
+  int _reqCounter = 3;
+
+  // ── Registration queue ──────────────────────────────────────────────────────
+  final List<PendingUser> pendingUsers = [];
+
+  /// Register a new user — they must wait for admin approval.
+  void registerUser(PendingUser user) {
+    pendingUsers.add(user);
+    notifications.insert(0, AppNotification(
+      title: 'New Registration',
+      body: '${user.name} (${user.role}) has requested an account.',
+      icon: Icons.person_add_outlined,
+      color: kAccent,
+    ));
+    notifyListeners();
+  }
+
+  /// Check registration status for an email.
+  RegistrationStatus? registrationStatus(String email) {
+    final match = pendingUsers.where(
+      (u) => u.email.toLowerCase() == email.toLowerCase()).firstOrNull;
+    return match?.status;
+  }
+
+  void addServiceRequest(String type, String details, String requesterName) {
+    final now = DateTime.now();
+    final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    serviceRequests.insert(0, ServiceRequest(
+      id: 'REQ-${_reqCounter.toString().padLeft(3, '0')}',
+      type: type, details: details,
+      date: '${months[now.month - 1]} ${now.day}, ${now.year}',
+      requesterName: requesterName,
+    ));
+    _reqCounter++;
+    notifications.insert(0, AppNotification(
+      title: 'Request Submitted',
+      body: '$type request is now pending review.',
+      icon: Icons.send, color: kAccent,
+    ));
+    notifyListeners();
+  }
+
+  bool isSyncingMemberData = false;
+  String? memberSyncError;
+
+  // Current logged-in user profile (updated from API after login)
+  String profileName = '';
+  String profileInitials = '';
+  String profileEmail = '';
+  String? profileContactNumber;
+  String? profileStudentId;
+  String? profileImageUrl;
+  String profileAccountRole = 'Member';
+  String profileStatus = 'approved';
+  String profileYear = 'ACCESS Member';
+  int profileUploads = 0;
+  Color profileColor = const Color(0xFF3B82F6);
+  String? profileSkillLevel;
+  int profilePoints = 0;
+  int? profileRankPosition;
+
+  void applyProfile({
+    required String name,
+    required String email,
+    int? uploads,
+    String? skillLevel,
+    int? points,
+    int? rankPosition,
+    String? contactNumber,
+    String? studentId,
+    String? profileImage,
+    String? role,
+    String? status,
+  }) {
+    profileName = name;
+    profileEmail = email;
+    profileContactNumber = contactNumber;
+    profileStudentId = studentId;
+    if (profileImage != null) profileImageUrl = profileImage;
+    if (role != null) profileAccountRole = role;
+    if (status != null) profileStatus = status;
+    final parts = name.trim().split(RegExp(r'\s+'));
+    profileInitials = parts.length >= 2
+        ? '${parts.first[0]}${parts.last[0]}'.toUpperCase()
+        : (parts.isNotEmpty ? parts.first[0].toUpperCase() : '?');
+    if (uploads != null) profileUploads = uploads;
+    profileSkillLevel = skillLevel;
+    if (points != null) profilePoints = points;
+    profileRankPosition = rankPosition;
+    profileYear = skillLevel != null ? 'Skill: $skillLevel' : 'ACCESS Member';
+    notifyListeners();
+  }
+
+  /// Points from member_rankings (synced from API) or local good evaluations.
+  int get profileGoodEvaluations =>
+    profilePoints > 0
+        ? profilePoints
+        : evaluations.where((e) => e.score >= 0.70).length;
+
+  /// Title is earned after 3–5 evaluations; based on average score quality.
+  /// Returns null if fewer than 3 evaluations have been completed.
+  String? get profileTitle {
+    final scored = evaluations.where((e) => e.score > 0).toList();
+    if (scored.length < 3) return null; // not yet earned
+    final avg = scored.fold(0.0, (s, e) => s + e.score) / scored.length;
+    return computeTitle(avg, scored.length);
+  }
+
+  /// Role shown on profile — earned title if available, otherwise 'Unranked'
+  String get profileRole {
+    return profileTitle ?? 'Unranked';
+  }
+
+  BadgeInfo get profileBadge => memberBadge(profileGoodEvaluations);
+
+  int get profileRank {
+    final sorted = [...members]..sort((a, b) => b.goodEvaluations.compareTo(a.goodEvaluations));
+    final i = sorted.indexWhere((m) => m.name == profileName);
+    return i < 0 ? sorted.length + 1 : i + 1;
+  }
+
+  final List<Achievement> achievements = [];
+  final List<Member> members = [];
+}
+
+final appState = AppState();
