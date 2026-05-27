@@ -3,6 +3,7 @@ import 'package:access_mobile/shared/themes/theme.dart';
 import 'package:access_mobile/shared/controllers/app_state.dart';
 import 'package:access_mobile/shared/controllers/member_data_controller.dart';
 import 'package:access_mobile/shared/widgets/access_branding.dart';
+import 'package:access_mobile/mobile_app/widgets/mobile_ui_kit.dart';
 
 class ServiceRequestsScreen extends StatefulWidget {
   final String requesterName;
@@ -26,12 +27,15 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen>
     return Column(children: [
       // ── Hero header ──────────────────────────────────────────────────────
       Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF1A2B4A), Color(0xFF1E3A5F)],
-            begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(24))),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            colors: [kSidebar, kSidebar.withValues(alpha: 0.92)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(kMobilePagePadding, 16, kMobilePagePadding, 0),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const AccessBrandMark(
             logoSize: 40,

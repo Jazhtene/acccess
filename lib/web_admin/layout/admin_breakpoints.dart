@@ -68,7 +68,7 @@ abstract final class AdminBreakpoints {
 }
 
 /// Horizontal scroll wrapper — keeps overflow inside the table card.
-class ResponsiveTableScroll extends StatelessWidget {
+class ResponsiveTableScroll extends StatefulWidget {
   const ResponsiveTableScroll({
     super.key,
     required this.child,
@@ -79,21 +79,39 @@ class ResponsiveTableScroll extends StatelessWidget {
   final double? minTableWidth;
 
   @override
+  State<ResponsiveTableScroll> createState() => _ResponsiveTableScrollState();
+}
+
+class _ResponsiveTableScrollState extends State<ResponsiveTableScroll> {
+  final ScrollController _hCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _hCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final parentW = constraints.maxWidth.isFinite && constraints.maxWidth > 0
             ? constraints.maxWidth
             : AdminBreakpoints.widthOf(context) - 48;
-        final minW = minTableWidth ?? (parentW - 8).clamp(320.0, 2400.0);
+        final minW = widget.minTableWidth ?? (parentW - 8).clamp(320.0, 2400.0);
 
         return Scrollbar(
+          controller: _hCtrl,
           thumbVisibility: true,
+          trackVisibility: true,
+          interactive: true,
+          scrollbarOrientation: ScrollbarOrientation.bottom,
           child: SingleChildScrollView(
+            controller: _hCtrl,
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
               constraints: BoxConstraints(minWidth: minW),
-              child: child,
+              child: widget.child,
             ),
           ),
         );

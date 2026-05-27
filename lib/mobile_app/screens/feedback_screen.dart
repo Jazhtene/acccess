@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:access_mobile/shared/themes/theme.dart';
 import 'package:access_mobile/shared/controllers/app_state.dart';
 import 'package:access_mobile/shared/controllers/member_data_controller.dart';
+import 'package:access_mobile/mobile_app/widgets/mobile_ui_kit.dart';
+import 'package:access_mobile/mobile_app/widgets/stat_card.dart';
 
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});
@@ -71,14 +73,13 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     return ListenableBuilder(
       listenable: appState,
       builder: (_, __) => SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(kMobilePagePadding, 8, kMobilePagePadding, 24),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Feedback', style: TextStyle(color: kTextPrimary,
-            fontSize: 24, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          const Text('Rate and review an ACCESS event.',
-            style: TextStyle(color: kTextSecondary, fontSize: 13)),
-          const SizedBox(height: 24),
+          const MobilePageTitle(
+            title: 'Feedback',
+            subtitle: 'Rate and review an ACCESS event you attended.',
+          ),
+          const SizedBox(height: 16),
 
           if (_sent) ...[
             _SuccessBanner(onNew: _reset),
@@ -99,8 +100,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
           // Past feedback list
           if (appState.feedbacks.isNotEmpty) ...[
-            const Text('Past Feedback', style: TextStyle(color: kTextPrimary,
-              fontSize: 16, fontWeight: FontWeight.w700)),
+            const AccessSectionHeader(title: 'Past Feedback'),
             const SizedBox(height: 12),
             ...appState.feedbacks.map((fb) => _FeedbackCard(fb: fb)),
           ],
@@ -163,11 +163,8 @@ class _FeedbackForm extends StatelessWidget {
         .map((c) => '${c.requestId}|${c.title}')
         .toList();
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: kSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kBorder)),
+    return MobileContentCard(
+      padding: const EdgeInsets.all(18),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
         // Event selector

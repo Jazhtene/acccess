@@ -427,31 +427,41 @@ class _RequesterShellState extends State<RequesterShell> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: context.colors.surface,
-          border: Border(top: BorderSide(color: context.colors.border))),
+          border: Border(top: BorderSide(color: context.colors.border)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: 60,
-            child: Row(children: [
-              _RequesterTab(
-                icon: Icons.send_outlined,
-                label: 'Requests',
-                color: kAccent,
-                active: _index == 0,
-                onTap: () => setState(() => _index = 0)),
-              _RequesterTab(
-                icon: Icons.chat_bubble_outline,
-                label: 'Feedback',
-                color: kGreen,
-                active: _index == 1,
-                onTap: () => setState(() => _index = 1)),
-              _RequesterTab(
-                icon: Icons.photo_library_outlined,
-                label: 'Gallery',
-                color: kPurple,
-                active: _index == 2,
-                onTap: () => setState(() => _index = 2)),
-            ]),
+            height: 68,
+            child: Row(
+              children: [
+                _RequesterTab(
+                  icon: Icons.send_rounded,
+                  label: 'Requests',
+                  active: _index == 0,
+                  onTap: () => setState(() => _index = 0),
+                ),
+                _RequesterTab(
+                  icon: Icons.rate_review_rounded,
+                  label: 'Feedback',
+                  active: _index == 1,
+                  onTap: () => setState(() => _index = 1),
+                ),
+                _RequesterTab(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Gallery',
+                  active: _index == 2,
+                  onTap: () => setState(() => _index = 2),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -462,31 +472,48 @@ class _RequesterShellState extends State<RequesterShell> {
 class _RequesterTab extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color color;
   final bool active;
   final VoidCallback onTap;
-  const _RequesterTab({required this.icon, required this.label,
-    required this.color, required this.active, required this.onTap});
+  const _RequesterTab({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon,
-            color: active
-                ? color
-                : Color.alphaBlend(color.withOpacity(0.38), context.colors.textSecondary),
-            size: 22),
-        const SizedBox(height: 3),
-        Text(label, style: TextStyle(
-          color: active ? color : context.colors.textSecondary,
-          fontSize: 10,
-          fontWeight: active ? FontWeight.w700 : FontWeight.w400)),
-      ]),
-    ),
-  );
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              decoration: BoxDecoration(
+                color: active ? kAccent.withValues(alpha: 0.10) : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: active ? kAccent : kIconInactive, size: active ? 24 : 22),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: active ? kAccent : kIconInactive,
+                      fontSize: 10,
+                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _RequesterTopBar extends StatelessWidget {
@@ -711,10 +738,10 @@ class _GalleryScreenWrapperState extends State<_GalleryScreenWrapper> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kPurple,
-                        foregroundColor: Colors.white,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kAccent,
+                        side: const BorderSide(color: kAccent),
                         minimumSize: const Size(0, 44),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),

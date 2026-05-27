@@ -3,6 +3,7 @@ import 'package:access_mobile/shared/themes/theme.dart';
 import 'package:access_mobile/shared/controllers/app_state.dart';
 import 'package:access_mobile/shared/controllers/member_data_controller.dart';
 import 'package:access_mobile/mobile_app/widgets/mobile_ui_kit.dart';
+import 'package:access_mobile/mobile_app/widgets/stat_card.dart';
 
 class RankingsScreen extends StatelessWidget {
   const RankingsScreen({super.key});
@@ -40,20 +41,23 @@ class RankingsScreen extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(kMobilePagePadding, 8, kMobilePagePadding, 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Rankings', style: TextStyle(color: colors.textPrimary,
-          fontSize: 22, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 4),
-        Text('Members ranked by good evaluations (score ≥ 70%).',
-          style: TextStyle(color: colors.textSecondary, fontSize: 12, height: 1.4)),
-        const SizedBox(height: 16),
-
-        // Stats row
-        Row(children: [
-          _StatCard(value: '${members.length}', label: 'Total Members'),
-          const SizedBox(width: 12),
-          _StatCard(
+        const MobilePageTitle(
+          title: 'Rankings',
+          subtitle: 'Members ranked by good evaluations (score ≥ 70%).',
+        ),
+        const SizedBox(height: 8),
+        AccessStatGrid(cards: [
+          AccessStatCard(
+            icon: Icons.groups_rounded,
+            value: '${members.length}',
+            label: 'Total Members',
+            compact: true,
+          ),
+          AccessStatCard(
+            icon: Icons.emoji_events_rounded,
             value: '${members.isNotEmpty ? members.first.goodEvaluations : 0}',
             label: 'Top Good Evals',
+            compact: true,
           ),
         ]),
         const SizedBox(height: 12),
@@ -68,8 +72,7 @@ class RankingsScreen extends StatelessWidget {
         const SizedBox(height: 28),
 
         // Top 3 podium
-        Text('Top 3 Members', style: TextStyle(color: colors.textPrimary,
-          fontSize: 16, fontWeight: FontWeight.w700)),
+        const AccessSectionHeader(title: 'Top 3 Members'),
         if (top3.isNotEmpty) ...[
           const SizedBox(height: 8),
           _Podium(top3: top3),
@@ -77,8 +80,7 @@ class RankingsScreen extends StatelessWidget {
         ],
 
         // Full leaderboard
-        Text('Full Leaderboard', style: TextStyle(color: colors.textPrimary,
-          fontSize: 16, fontWeight: FontWeight.w700)),
+        const AccessSectionHeader(title: 'Full Leaderboard'),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
@@ -132,8 +134,7 @@ class RankingsScreen extends StatelessWidget {
         const SizedBox(height: 28),
 
         // Badge legend
-        const Text('Badge Guide', style: TextStyle(color: kTextPrimary,
-          fontSize: 16, fontWeight: FontWeight.w700)),
+        const AccessSectionHeader(title: 'Badge Guide'),
         const SizedBox(height: 12),
         _BadgeLegend(),
       ]),
@@ -257,45 +258,6 @@ class _BadgeChip extends StatelessWidget {
           fontSize: 10, fontWeight: FontWeight.w700))),
     ]),
   );
-}
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
-class _StatCard extends StatelessWidget {
-  final String value, label;
-  const _StatCard({required this.value, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.border),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                color: kAccent,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ── Badge legend ──────────────────────────────────────────────────────────────

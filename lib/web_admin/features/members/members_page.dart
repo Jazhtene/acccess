@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:access_mobile/shared/api/admin_api_service.dart';
 import 'package:access_mobile/web_admin/features/members/member_models.dart';
-import 'package:access_mobile/web_admin/features/members/members_report.dart';
 import 'package:access_mobile/web_admin/features/members/widgets/member_admin_dialogs.dart';
 import 'package:access_mobile/web_admin/features/members/widgets/members_table.dart';
 import 'package:access_mobile/web_admin/layout/admin_feature_page.dart';
@@ -157,69 +155,76 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   Future<void> _handleAction(AdminMemberRow row, MemberActionType type) async {
-    switch (type) {
-      case MemberActionType.viewProfile:
-        await MemberAdminDialogs.showProfile(context, row);
-      case MemberActionType.assignRole:
-        final role = await MemberAdminDialogs.pickRole(context, row.role);
-        if (role != null) await _setRole(row, role);
-      case MemberActionType.assignTask:
-        if (!context.mounted) return;
-        AdminNavigationScope.go(context, AdminRoute.taskAssignments);
-        _toast('Open Task Assignments to assign coverage roles');
-      case MemberActionType.changeStatus:
-        final st = await MemberAdminDialogs.pickStatus(context, row.status);
-        if (st == null) return;
-        if (st == 'rejected') {
-          final reason = await MemberAdminDialogs.rejectionReason(context, row);
-          if (reason == null) return;
-          await _setStatus(row, st, rejectionReason: reason);
-        } else {
-          await _setStatus(row, st);
-        }
-      case MemberActionType.approve:
-        final ok = await ConfirmDialog.show(
-          context,
-          title: 'Approve member?',
-          message: 'Grant ${row.name} access to ACCESS Sync.',
-          confirmLabel: 'Approve',
-          icon: Icons.check_circle_outline,
-        );
-        if (ok == true) await _setStatus(row, 'approved');
-      case MemberActionType.reject:
-        final reason = await MemberAdminDialogs.rejectionReason(context, row);
-        if (reason != null) await _setStatus(row, 'rejected', rejectionReason: reason);
-      case MemberActionType.disable:
-        final ok = await ConfirmDialog.show(
-          context,
-          title: 'Disable account?',
-          message: 'This will reject ${row.name}\'s access until re-approved.',
-          confirmLabel: 'Disable',
-          destructive: true,
-          icon: Icons.block,
-        );
-        if (ok == true) await _setStatus(row, 'rejected');
-      case MemberActionType.remove:
-        await _removeMember(row);
+    if (type == MemberActionType.viewProfile) {
+      await MemberAdminDialogs.showProfile(context, row);
+      return;
     }
-  }
 
-  void _export(String type) {
-    final data = _filtered;
-    final text = switch (type) {
-      'members' => membersCsvReport(data),
-      'skills' => skillClassificationCsvReport(data),
-      _ => membersPrintableReport(data, title: 'ACCESS Sync — Member Report'),
-    };
-    Clipboard.setData(ClipboardData(text: text));
-    if (type == 'print') {
-      MemberAdminDialogs.showReport(
+    if (type == MemberActionType.assignRole) {
+      final role = await MemberAdminDialogs.pickRole(context, row.role);
+      if (!mounted) return;
+      if (role != null) await _setRole(row, role);
+      return;
+    }
+
+    if (type == MemberActionType.assignTask) {
+      if (!mounted) return;
+      AdminNavigationScope.go(context, AdminRoute.taskAssignments);
+      _toast('Open Task Assignments to assign coverage roles');
+      return;
+    }
+
+    if (type == MemberActionType.changeStatus) {
+      final st = await MemberAdminDialogs.pickStatus(context, row.status);
+      if (!mounted) return;
+      if (st == null) return;
+      if (st == 'rejected') {
+        final reason = await MemberAdminDialogs.rejectionReason(context, row);
+        if (!mounted) return;
+        if (reason == null) return;
+        await _setStatus(row, st, rejectionReason: reason);
+      } else {
+        await _setStatus(row, st);
+      }
+      return;
+    }
+
+    if (type == MemberActionType.approve) {
+      final ok = await ConfirmDialog.show(
         context,
-        title: 'Print preview',
-        body: membersPrintableReport(data, title: 'ACCESS Sync Member Report'),
+        title: 'Approve member?',
+        message: 'Grant ${row.name} access to ACCESS Sync.',
+        confirmLabel: 'Approve',
+        icon: Icons.check_circle_outline,
       );
-    } else {
-      _toast('Report copied to clipboard');
+      if (!mounted) return;
+      if (ok == true) await _setStatus(row, 'approved');
+      return;
+    }
+
+    if (type == MemberActionType.reject) {
+      final reason = await MemberAdminDialogs.rejectionReason(context, row);
+      if (!mounted) return;
+      if (reason != null) await _setStatus(row, 'rejected', rejectionReason: reason);
+      return;
+    }
+
+    if (type == MemberActionType.disable) {
+      final ok = await ConfirmDialog.show(
+        context,
+        title: 'Disable account?',
+        message: 'This will reject ${row.name}\'s access until re-approved.',
+        confirmLabel: 'Disable',
+        destructive: true,
+        icon: Icons.block,
+      );
+      if (!mounted) return;
+      if (ok == true) await _setStatus(row, 'rejected');
+      return;
+    }
+
+    if (type == MemberActionType.remove) {
+      await _removeMember(row);
     }
   }
 
@@ -236,21 +241,6 @@ class _MembersPageState extends State<MembersPage> {
       error: _error,
       onRetry: _load,
       actions: [
-        PageHeaderButton(
-          icon: Icons.download_outlined,
-          label: 'Export Members',
-          onPressed: filtered.isEmpty ? null : () => _export('members'),
-        ),
-        PageHeaderButton(
-          icon: Icons.school_outlined,
-          label: 'Skill Report',
-          onPressed: filtered.isEmpty ? null : () => _export('skills'),
-        ),
-        PageHeaderButton(
-          icon: Icons.print_outlined,
-          label: 'Print',
-          onPressed: filtered.isEmpty ? null : () => _export('print'),
-        ),
         PageHeaderIconButton(icon: Icons.refresh, onPressed: _load, tooltip: 'Refresh'),
       ],
       filter: Column(

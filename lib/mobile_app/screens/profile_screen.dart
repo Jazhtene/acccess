@@ -35,9 +35,11 @@ class ProfileScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(kMobilePagePadding, 8, kMobilePagePadding, 24),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('My Profile', style: TextStyle(color: context.colors.textPrimary,
-              fontSize: 22, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 16),
+            const MobilePageTitle(
+              title: 'My Profile',
+              subtitle: 'Your role, performance, achievements, and account settings.',
+            ),
+            const SizedBox(height: 12),
 
             // ── Hero card ──────────────────────────────────────────────────
             Container(

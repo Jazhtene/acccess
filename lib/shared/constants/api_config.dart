@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Defaults are picked so the mobile app works **out of the box**:
 /// - **Chrome / web admin (same PC):** `http://127.0.0.1:3001`
+/// - **Web admin on a deployed server** (e.g. `http://103.x.x.x/`): same origin
+///   as the page — nginx proxies `/api` on port 80 (no `:3001` in the browser).
 /// - **Android emulator:** `http://10.0.2.2:3001` (special alias for the host
 ///   machine's localhost — works for the default Android Studio emulator).
 /// - **Physical phone:** override with the PC's LAN IPv4 address using
@@ -60,10 +62,28 @@ class ApiConfig {
   static const String apiPortOverride =
       String.fromEnvironment('API_PORT', defaultValue: '$defaultPort');
 
+  /// When web admin is opened at a public IP or domain (not localhost), API
+  /// calls must use the same origin — nginx proxies `/api` on port 80.
+  static String? get _webSameOriginBaseUrl {
+    if (!kIsWeb) return null;
+    final page = Uri.base;
+    final h = page.host;
+    if (h.isEmpty || h == 'localhost' || h == '127.0.0.1') return null;
+    final scheme = page.scheme.isNotEmpty ? page.scheme : 'http';
+    if (!page.hasPort || page.port == 80 || page.port == 443) {
+      return '$scheme://$h';
+    }
+    return '$scheme://$h:${page.port}';
+  }
+
   static String get host {
     if (apiHostOverride.isNotEmpty) return apiHostOverride;
 
-    if (kIsWeb) return apiWebHostOverride;
+    if (kIsWeb) {
+      final sameOrigin = _webSameOriginBaseUrl;
+      if (sameOrigin != null) return Uri.parse(sameOrigin).host;
+      return apiWebHostOverride;
+    }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       // Physical phone → developer must pass API_PUBLIC_HOST.
@@ -105,6 +125,8 @@ class ApiConfig {
     if (apiBaseUrlOverride.isNotEmpty) {
       return apiBaseUrlOverride.replaceAll(RegExp(r'/+$'), '');
     }
+    final sameOrigin = _webSameOriginBaseUrl;
+    if (sameOrigin != null) return sameOrigin;
     return 'http://$host:$port';
   }
 
@@ -115,6 +137,8 @@ class ApiConfig {
     if (runtime != null && runtime.trim().isNotEmpty) {
       return runtime.trim().replaceAll(RegExp(r'/+$'), '');
     }
+    final sameOrigin = _webSameOriginBaseUrl;
+    if (sameOrigin != null) return sameOrigin;
     if (_lastWorkingBaseUrl != null && _lastWorkingBaseUrl!.isNotEmpty) {
       return _lastWorkingBaseUrl!;
     }
@@ -181,8 +205,14 @@ class ApiConfig {
     }
 
     add(apiBaseUrlOverride);
-    add(_lastWorkingBaseUrl);
-    add('http://$host:$port');
+    add(_webSameOriginBaseUrl);
+    if (_webSameOriginBaseUrl == null) {
+      add(_lastWorkingBaseUrl);
+    }
+    add(baseUrl);
+    if (kIsWeb && _webSameOriginBaseUrl == null) {
+      add('http://$apiWebHostOverride:$defaultPort');
+    }
 
     // Physical phone failover: try known LAN IPs on the same port.
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {

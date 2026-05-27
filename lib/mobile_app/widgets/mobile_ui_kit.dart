@@ -7,6 +7,12 @@ import 'package:access_mobile/shared/controllers/member_data_controller.dart';
 /// Standard horizontal padding for mobile tab content.
 const double kMobilePagePadding = 16;
 
+/// Vertical gap between major sections on tab screens.
+const double kMobileSectionGap = 16;
+
+/// Minimum touch height for tappable controls (Material guideline).
+const double kMobileMinTouch = 44;
+
 /// Wraps tab body with pull-to-refresh and optional offline banner.
 class MobilePageWrapper extends StatelessWidget {
   const MobilePageWrapper({
@@ -512,7 +518,7 @@ class MobileFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 36,
+        height: 40,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: kMobilePagePadding),
@@ -525,11 +531,23 @@ class MobileFilterChips extends StatelessWidget {
               onTap: () => onSelected(f),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: active ? kAccent : context.colors.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: active ? kAccent : context.colors.border),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: active ? kAccent : context.colors.border,
+                    width: active ? 1 : 1,
+                  ),
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: kAccent.withValues(alpha: 0.22),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Text(
                   f,
@@ -582,6 +600,54 @@ class MobilePrimaryButton extends StatelessWidget {
       ),
     );
     return expanded ? SizedBox(width: double.infinity, child: btn) : btn;
+  }
+}
+
+/// Standard elevated surface card (dashboard sections, forms, lists).
+class MobileContentCard extends StatelessWidget {
+  const MobileContentCard({
+    super.key,
+    required this.child,
+    this.padding,
+    this.onTap,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final radius = BorderRadius.circular(14);
+    final content = Container(
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: radius,
+        border: Border.all(color: colors.border.withValues(alpha: 0.9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: child,
+    );
+
+    if (onTap == null) return content;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: content,
+      ),
+    );
   }
 }
 

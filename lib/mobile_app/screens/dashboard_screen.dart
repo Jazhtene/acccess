@@ -38,6 +38,11 @@ class DashboardScreen extends StatelessWidget {
               28,
             ),
             children: [
+              const MobilePageTitle(
+                title: 'Dashboard',
+                subtitle: 'Your activity, submissions, and performance at a glance.',
+              ),
+              const SizedBox(height: 8),
               _SystemStatusChip(),
               const SizedBox(height: _kSectionGap),
               _WelcomeSection(),

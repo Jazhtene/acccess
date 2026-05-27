@@ -146,23 +146,4 @@ class MemberAdminDialogs {
       ),
     );
   }
-
-  static Future<void> showReport(BuildContext context, {required String title, required String body}) {
-    return showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-        content: SizedBox(
-          width: 560,
-          height: 360,
-          child: SingleChildScrollView(
-            child: SelectableText(body, style: const TextStyle(fontSize: 12, height: 1.4)),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-        ],
-      ),
-    );
-  }
 }
